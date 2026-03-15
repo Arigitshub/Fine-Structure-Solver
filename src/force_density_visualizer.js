@@ -19,6 +19,14 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
+// Quantum Electrodynamic Constants
+// The Coupling Constant Base (Inverse Fine-Structure Constant)
+const INVERSE_ALPHA = 137.035999;
+const ALPHA = 1.0 / INVERSE_ALPHA;
+
+// Setup Probability Density Mapping uniforms
+let timeOffset = 0.0;
+
 // Render loop stub
 function renderLoop() {
   if (!gl) return;
@@ -27,7 +35,11 @@ function renderLoop() {
   gl.clear(gl.COLOR_BUFFER_BIT);
 
   // Future integration point for rendering the compute shader output
-  // representing the atomic force-density fields
+  // representing the atomic force-density fields.
+  
+  // Here we will calculate and pass the Electrostatic Force Vectors
+  // to the WebGL shader program to render the "tension" gradient color map
+  // pushing electrons apart versus binding to the nucleus, scaled by ALPHA.
 
   requestAnimationFrame(renderLoop);
 }
