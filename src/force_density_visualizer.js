@@ -18,6 +18,42 @@ alphaSlider.addEventListener('input', (e) => {
   }
 });
 
+// Snapshot Data Pipeline
+const snapshotBtn = document.getElementById('snapshotBtn');
+snapshotBtn.addEventListener('click', () => {
+    // We must ensure preservedDrawingBuffer is true in renderer to grab the frame
+    try {
+        const dataURL = renderer.domElement.toDataURL('image/png');
+        
+        // Bundle the snapshot state
+        const statePackage = {
+            metadata: {
+                timestamp: new Date().toISOString(),
+                inverse_alpha: inverseAlpha,
+                coupling_constant: alpha,
+                description: "Fine-Structure-Solver Electrostatic Force Density Snapshot"
+            },
+            snapshot_uri: dataURL
+        };
+
+        // Create a downloadable JSON blob
+        const blob = new Blob([JSON.stringify(statePackage, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `force_density_state_${inverseAlpha.toFixed(2)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        console.log("✅ Successfully exported WebGL State Pipeline Data");
+    } catch (err) {
+        console.error("Snapshot failed: ensure preserveDrawingBuffer is enabled on WebGLRenderer", err);
+    }
+});
+
 // Scene setup
 const container = document.getElementById('glcontainer');
 const scene = new THREE.Scene();
@@ -26,7 +62,7 @@ scene.background = new THREE.Color(0x050510);
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.z = 5;
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 container.appendChild(renderer.domElement);
