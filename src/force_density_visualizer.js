@@ -1,48 +1,113 @@
-// Initialization for the High-Performance WebGL 2.0 context
-const canvas = document.getElementById('glcanvas');
-const gl = canvas.getContext('webgl2', { antialias: false, depth: false });
-
-if (!gl) {
-  document.getElementById('status').innerText = 'Status: FAILED - WebGL 2.0 not supported.';
-  console.error('WebGL 2 context not available.');
-} else {
-  document.getElementById('status').innerText = 'Status: WebGL 2.0 Context Initialized. Awaiting force-density data.';
-}
-
-// Function to handle resizing
-function resizeCanvas() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  if(gl) gl.viewport(0, 0, canvas.width, canvas.height);
-}
-
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 
 // Quantum Electrodynamic Constants
-// The Coupling Constant Base (Inverse Fine-Structure Constant)
-const INVERSE_ALPHA = 137.035999;
-const ALPHA = 1.0 / INVERSE_ALPHA;
+let inverseAlpha = 137.035999;
+let alpha = 1.0 / inverseAlpha;
 
-// Setup Probability Density Mapping uniforms
-let timeOffset = 0.0;
+// Set up the UI Binding
+const alphaSlider = document.getElementById('alphaSlider');
+const alphaValueDisplay = document.getElementById('alphaValue');
 
-// Render loop stub
-function renderLoop() {
-  if (!gl) return;
-  // Clear the canvas to the background color
-  gl.clearColor(0.02, 0.02, 0.06, 1.0);
-  gl.clear(gl.COLOR_BUFFER_BIT);
+alphaSlider.addEventListener('input', (e) => {
+  inverseAlpha = parseFloat(e.target.value);
+  alphaValueDisplay.innerText = inverseAlpha.toFixed(6);
+  alpha = 1.0 / inverseAlpha;
+  if(material) {
+    material.uniforms.u_Alpha.value = alpha;
+  }
+});
 
-  // Future integration point for rendering the compute shader output
-  // representing the atomic force-density fields.
+// Scene setup
+const container = document.getElementById('glcontainer');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x050510);
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.z = 5;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+
+// Build the Quantum Shader
+const vertexShader = `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const fragmentShader = `
+  uniform float u_Alpha;
+  uniform float u_Time;
+  varying vec2 vUv;
   
-  // Here we will calculate and pass the Electrostatic Force Vectors
-  // to the WebGL shader program to render the "tension" gradient color map
-  // pushing electrons apart versus binding to the nucleus, scaled by ALPHA.
+  void main() {
+    // Probability Density Mapping (Electrostatic Force Vectors)
+    vec2 pos = vUv * 2.0 - 1.0;
+    
+    // Simulating tension gradient: Repulsion vs Nuclear Binding scaled by alpha
+    float dist = length(pos);
+    
+    // Wave function approximation
+    float wave = sin(dist * 20.0 - u_Time * 5.0);
+    
+    // The force vectors push apart or bind based on the coupling constant tension
+    float tension = smoothstep(0.1, 0.8, dist * u_Alpha * 150.0) * wave;
+    
+    // Render the tension gradient: deep purple/blue to vibrant cyan
+    vec3 color = mix(vec3(0.1, 0.0, 0.3), vec3(0.0, 1.0, 0.8), tension + 0.5);
+    
+    // Core glow
+    float core = 0.05 / (dist + 0.01);
+    color += vec3(core) * u_Alpha * 100.0;
+    
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
 
-  requestAnimationFrame(renderLoop);
+const material = new THREE.ShaderMaterial({
+  uniforms: {
+    u_Alpha: { value: alpha },
+    u_Time: { value: 0.0 }
+  },
+  vertexShader: vertexShader,
+  fragmentShader: fragmentShader,
+  transparent: true
+});
+
+// Create a simple plane or sphere to visualize the density matrix
+const geometry = new THREE.SphereGeometry(2, 64, 64);
+const mesh = new THREE.Mesh(geometry, material);
+scene.add(mesh);
+
+// Resize handler
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  
+  material.uniforms.u_Time.value = clock.getElapsedTime();
+  
+  // Rotate the density cloud over time
+  mesh.rotation.y += 0.002;
+  mesh.rotation.x += 0.001;
+  
+  renderer.render(scene, camera);
 }
 
-// Start the empty render loop
-renderLoop();
+animate();
